@@ -1,0 +1,26 @@
+# dependencies
+node_modules
+
+# build output
+dist
+*.tsbuildinfo
+
+# vite cache
+.vite
+
+# test coverage
+coverage
+
+# os
+.DS_Store
+
+# logs
+*.log
+
+# wizards workshop internal metadata
+.wiz
+
+# local env / secrets
+.env
+.env.local
+.env.*.local
