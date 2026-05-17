@@ -4,10 +4,16 @@ import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { useInteractionStore } from '../../store/interactionStore';
 import { Icon } from '../ui/Icon';
 import { ExportMenu } from '../export/ExportMenu';
-import { DeviceToggle, DEVICE_WIDTH_PX, type Device } from './DeviceToggle';
 import { CommentOverlay } from './CommentOverlay';
 import { DrawOverlay } from './DrawOverlay';
+import { VariationsCanvas } from './VariationsCanvas';
+import { QuestionsCanvas } from './QuestionsCanvas';
+import { DeviceFrame } from './DeviceFrame';
+import { FilesBrowser } from './FilesBrowser';
 import { parseHtmlFiles, fileById, type VirtualFile } from '../../lib/parseHtmlFiles';
+import { parseAssistantResponse, type DeviceKind } from '../../lib/parseAssistantResponse';
+import { detectDevice } from '../../lib/detectDevice';
+import { extractDesignBg } from '../../lib/extractDesignBg';
 import { cn } from '../../lib/cn';
 
 const EMPTY_MESSAGE = 'Describe a UI to begin';
@@ -48,17 +54,60 @@ export function PreviewPane({ debounceMs = 150 }: PreviewPaneProps) {
   const sourceHtml = session?.currentHtml ?? '';
   const debounced = useDebouncedValue(sourceHtml, debounceMs);
 
+  // Look at the latest assistant turn to detect special modes (questions /
+  // variations). For "questions" we additionally require that turn to be the
+  // VERY LAST turn — once the user has answered (appending a user turn) the
+  // questions card should vanish so the streaming response can take over.
+  const turns = session?.turns ?? [];
+  const lastAssistant = useMemo(
+    () => [...turns].reverse().find((t) => t.role === 'assistant'),
+    [turns],
+  );
+  const lastTurnId = turns[turns.length - 1]?.id;
+
+  const parsedLast = useMemo(
+    () => (lastAssistant ? parseAssistantResponse(lastAssistant.content) : null),
+    [lastAssistant],
+  );
+
+  const questionsPayload = useMemo(() => {
+    if (!parsedLast || parsedLast.kind !== 'questions' || !lastAssistant) return null;
+    if (lastAssistant.id !== lastTurnId) return null;
+    return {
+      turnId: lastAssistant.id,
+      title: parsedLast.title,
+      intro: parsedLast.intro,
+      groups: parsedLast.groups,
+    };
+  }, [parsedLast, lastAssistant, lastTurnId]);
+
+  const variationItems = useMemo(() => {
+    if (!parsedLast || parsedLast.kind !== 'variations') return null;
+    // Variations canvas is a permanent view — there's no "selecting" one to
+    // collapse into single mode. The user pans/zooms; refinements happen
+    // through the sidebar prompt.
+    return parsedLast.items;
+  }, [parsedLast]);
+
   const files = useMemo(() => parseHtmlFiles(debounced), [debounced]);
   const activeFileId = useInteractionStore((s) => s.activeFileId);
+  const showFilesOverview = useInteractionStore((s) => s.filesOverviewOpen);
   const file = fileById(files, activeFileId) ?? files[0];
 
-  const [device, setDevice] = useState<Device>('desktop');
   const [reloadKey, setReloadKey] = useState(0);
   const mode = useInteractionStore((s) => s.mode);
-  const widthPx = DEVICE_WIDTH_PX[device];
+  const toggleMode = useInteractionStore((s) => s.toggleMode);
+
+  // Device is auto-detected from the HTML (meta tag, viewport classes). No manual override:
+  // the canvas always frames the design in its native device chrome.
+  const effectiveDevice: DeviceKind = useMemo(
+    () => (file?.kind === 'page' ? detectDevice(file.content) : 'desktop'),
+    [file],
+  );
 
   const hasPage = debounced.trim().length > 0 && file?.kind === 'page';
   const annotating = mode !== 'normal';
+  const isEmpty = !file || file.content.length === 0;
 
   const previewHtml = useMemo(() => {
     if (!file) return '';
@@ -75,30 +124,45 @@ export function PreviewPane({ debounceMs = 150 }: PreviewPaneProps) {
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
   };
 
-  const isEmpty = !file || file.content.length === 0;
+  const showCanvas = questionsPayload || variationItems;
+  const isPreviewable = !showCanvas && !isEmpty && (file?.kind === 'page' || file?.kind === 'component');
+
+  if (showFilesOverview) {
+    return (
+      <div className="flex h-full min-h-0 flex-col bg-bg">
+        <FilesBrowser files={files} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-bg">
-      <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-4">
-        <div className="flex min-w-0 items-center gap-2">
-          {file && !isEmpty && (
-            <>
-              <Icon name="file" size={14} className="shrink-0 text-muted" />
-              <span className="truncate text-[13px] font-medium text-fg-strong">{file.name}</span>
-              <span className="shrink-0 rounded-full bg-hover px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-muted">
-                {typeLabel(file.kind)}
-              </span>
-            </>
-          )}
+      <div className="flex h-10 shrink-0 items-center justify-between px-4">
+        <div className="flex min-w-0 items-center gap-2 text-[12px] font-medium text-muted">
+          <Icon name="search" size={12} className="shrink-0" />
+          <span>100%</span>
         </div>
         <div className="flex items-center gap-1">
-          {!isEmpty && (file?.kind === 'page' || file?.kind === 'component') && <DeviceToggle device={device} onChange={setDevice} />}
-          {!isEmpty && <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />}
+          <ModeButton
+            active={mode === 'comment'}
+            disabled={!isPreviewable || !previewHtml}
+            icon="comment"
+            label="Comment"
+            onClick={() => toggleMode('comment')}
+          />
+          <ModeButton
+            active={mode === 'draw'}
+            disabled={!isPreviewable || !previewHtml}
+            icon="pencil"
+            label="Draw"
+            onClick={() => toggleMode('draw')}
+          />
+          <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
           <button
             type="button"
             aria-label="Reload preview"
             onClick={() => setReloadKey((k) => k + 1)}
-            disabled={!previewHtml || isEmpty}
+            disabled={!isPreviewable || !previewHtml}
             className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-hover hover:text-fg disabled:opacity-40"
           >
             <Icon name="refresh" size={14} />
@@ -107,7 +171,7 @@ export function PreviewPane({ debounceMs = 150 }: PreviewPaneProps) {
             type="button"
             aria-label="Open preview in new tab"
             onClick={openInNewTab}
-            disabled={!previewHtml || isEmpty}
+            disabled={!isPreviewable || !previewHtml}
             className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] font-medium text-fg/85 transition-colors hover:bg-hover disabled:opacity-40"
           >
             <Icon name="external" size={13} />
@@ -118,13 +182,17 @@ export function PreviewPane({ debounceMs = 150 }: PreviewPaneProps) {
       </div>
 
       <div className="flex min-h-0 flex-1 items-stretch justify-center overflow-hidden p-2">
-        {isEmpty ? (
+        {questionsPayload ? (
+          <QuestionsCanvas {...questionsPayload} />
+        ) : variationItems ? (
+          <VariationsCanvas items={variationItems} />
+        ) : isEmpty ? (
           <EmptyState />
-        ) : file.kind === 'page' || file.kind === 'component' ? (
+        ) : file?.kind === 'page' || file?.kind === 'component' ? (
           <PreviewFrame
             html={previewHtml}
             reloadKey={reloadKey}
-            widthPx={widthPx}
+            device={effectiveDevice}
             annotating={annotating}
             meta={{ size: bytesLabel(file.content), filename: file.name, type: typeLabel(file.kind) }}
           />
@@ -149,46 +217,112 @@ function EmptyState() {
 function PreviewFrame({
   html,
   reloadKey,
-  widthPx,
+  device,
   annotating,
   meta,
 }: {
   html: string;
   reloadKey: number;
-  widthPx: number | null;
+  device: DeviceKind;
   annotating: boolean;
   meta: { size: string; filename: string; type: string };
 }) {
+  const iframe = (
+    <iframe
+      key={reloadKey}
+      title="Live preview"
+      sandbox="allow-scripts"
+      srcDoc={html}
+      className="block h-full w-full bg-white"
+      style={annotating ? { pointerEvents: 'none' } : undefined}
+    />
+  );
+
+  // Desktop / web: the iframe IS the canvas — no chrome, no surrounding
+  // backdrop, the design fills edge-to-edge like a real browser viewport.
+  if (device === 'desktop') {
+    return (
+      <div className="group/preview relative flex h-full w-full max-w-full overflow-hidden bg-white">
+        {iframe}
+        <CommentOverlay />
+        <DrawOverlay />
+        <MetaPill {...meta} />
+      </div>
+    );
+  }
+
+  // Mobile / tablet: extract the design's own body background and use it as
+  // the canvas backdrop so the phone chrome sits in a themed surround instead
+  // of a generic cream grid. Fall back to the studio bg + grid if extraction
+  // fails (the design has no parseable body bg).
+  const designBg = extractDesignBg(html);
+  const backdropStyle: React.CSSProperties = designBg
+    ? { background: designBg }
+    : {
+        backgroundImage:
+          'linear-gradient(to right, rgba(31,26,20,0.085) 1px, transparent 1px), linear-gradient(to bottom, rgba(31,26,20,0.085) 1px, transparent 1px)',
+        backgroundSize: '64px 64px',
+      };
+
   return (
-    <div className="group/preview relative flex h-full w-full max-w-full justify-center">
-      <div
-        className="relative flex h-full w-full max-w-full justify-center transition-[max-width] duration-200"
-        style={widthPx ? { maxWidth: `${widthPx}px` } : undefined}
-      >
-        <div className="relative flex h-full w-full overflow-hidden rounded-2xl border border-border bg-white shadow-lift">
-          <iframe
-            key={reloadKey}
-            title="Live preview"
-            sandbox="allow-scripts"
-            srcDoc={html}
-            className="block h-full w-full bg-white"
-            style={annotating ? { pointerEvents: 'none' } : undefined}
-          />
+    <div
+      className={cn(
+        'group/preview relative flex h-full w-full max-w-full items-center justify-center overflow-hidden',
+        !designBg && 'bg-bg',
+      )}
+      style={backdropStyle}
+    >
+      <div className="relative flex w-full items-center justify-center p-6">
+        <DeviceFrame device={device}>
+          {iframe}
           <CommentOverlay />
           <DrawOverlay />
-        </div>
+        </DeviceFrame>
       </div>
-      {/* Meta line sits on top of the preview, only visible on hover so it never steals vertical space. */}
-      <div
-        className="pointer-events-none absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full bg-fg-strong/85 px-2.5 py-1 text-[10px] text-bg opacity-0 backdrop-blur transition-opacity duration-200 group-hover/preview:opacity-100"
-      >
-        <span className="font-medium">{meta.filename}</span>
-        <span>·</span>
-        <span>{meta.type}</span>
-        <span>·</span>
-        <span>{meta.size}</span>
-      </div>
+      <MetaPill {...meta} />
     </div>
+  );
+}
+
+function MetaPill({ filename, type, size }: { filename: string; type: string; size: string }) {
+  return (
+    <div className="pointer-events-none absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full bg-fg-strong/85 px-2.5 py-1 text-[10px] text-bg opacity-0 backdrop-blur transition-opacity duration-200 group-hover/preview:opacity-100">
+      <span className="font-medium">{filename}</span>
+      <span>·</span>
+      <span>{type}</span>
+      <span>·</span>
+      <span>{size}</span>
+    </div>
+  );
+}
+
+function ModeButton({
+  active,
+  disabled,
+  icon,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  disabled?: boolean;
+  icon: 'comment' | 'pencil';
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-40',
+        active ? 'bg-accent-soft text-accent' : 'text-fg/85 hover:bg-hover',
+      )}
+    >
+      <Icon name={icon} size={13} />
+      <span>{label}</span>
+    </button>
   );
 }
 

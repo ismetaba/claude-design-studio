@@ -2,9 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDesignStore } from '../../store/designStore';
 import { useSettingsStore } from '../../store/settingsStore';
-import { useInteractionStore } from '../../store/interactionStore';
 import { Icon } from '../ui/Icon';
 import { cn } from '../../lib/cn';
+import { FileTabs } from './FileTabs';
 
 export function TopBar() {
   const navigate = useNavigate();
@@ -16,8 +16,6 @@ export function TopBar() {
 
   const theme = useSettingsStore((s) => s.theme);
   const setTheme = useSettingsStore((s) => s.setTheme);
-  const mode = useInteractionStore((s) => s.mode);
-  const toggleMode = useInteractionStore((s) => s.toggleMode);
 
   const title = session?.title?.trim() || 'Untitled design';
   const [editing, setEditing] = useState(false);
@@ -56,7 +54,7 @@ export function TopBar() {
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-accent-soft/40 via-accent-soft/10 to-transparent"
       />
-      <div className="relative flex min-w-0 flex-1 items-center gap-1.5">
+      <div className="relative flex shrink-0 items-center gap-1.5">
         <Link
           to="/"
           aria-label="All designs"
@@ -79,7 +77,7 @@ export function TopBar() {
                 setEditing(false);
               }
             }}
-            className="min-w-0 flex-1 bg-transparent text-[14px] font-medium text-fg-strong outline-none placeholder:text-muted"
+            className="min-w-0 bg-transparent text-[14px] font-medium text-fg-strong outline-none placeholder:text-muted"
             placeholder="Untitled design"
           />
         ) : (
@@ -88,7 +86,7 @@ export function TopBar() {
             onClick={() => session && setEditing(true)}
             disabled={!session}
             className={cn(
-              'min-w-0 truncate rounded-md px-1.5 py-1 text-left text-[14px] font-medium text-fg-strong transition-colors',
+              'max-w-[200px] truncate rounded-md px-1.5 py-1 text-left text-[14px] font-medium text-fg-strong transition-colors',
               session ? 'hover:bg-hover' : 'cursor-default text-muted',
             )}
             title={session ? 'Click to rename' : 'No design selected'}
@@ -108,22 +106,8 @@ export function TopBar() {
           <Icon name="plus" size={13} />
         </button>
       </div>
-      <div className="relative flex items-center gap-1">
-        <ModeButton
-          active={mode === 'comment'}
-          disabled={!hasContent}
-          icon="comment"
-          label="Comment"
-          onClick={() => toggleMode('comment')}
-        />
-        <ModeButton
-          active={mode === 'draw'}
-          disabled={!hasContent}
-          icon="pencil"
-          label="Draw"
-          onClick={() => toggleMode('draw')}
-        />
-        <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+      <FileTabs />
+      <div className="relative flex shrink-0 items-center gap-1">
         <button
           type="button"
           aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
@@ -154,35 +138,5 @@ export function TopBar() {
         </button>
       </div>
     </header>
-  );
-}
-
-function ModeButton({
-  active,
-  disabled,
-  icon,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  disabled?: boolean;
-  icon: 'comment' | 'pencil';
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-colors disabled:opacity-40',
-        active ? 'bg-accent-soft text-accent' : 'text-fg/85 hover:bg-hover',
-      )}
-    >
-      <Icon name={icon} size={13} />
-      <span>{label}</span>
-    </button>
   );
 }

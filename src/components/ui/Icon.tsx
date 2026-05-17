@@ -14,6 +14,7 @@ export type IconName =
   | 'close'
   | 'chevron-left'
   | 'chevron-right'
+  | 'chevron-down'
   | 'sidebar'
   | 'sparkle'
   | 'stop'
@@ -127,6 +128,9 @@ const PATHS: Record<IconName, JSX.Element> = {
   ),
   'chevron-right': (
     <path d="m9 18 6-6-6-6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+  ),
+  'chevron-down': (
+    <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" fill="none" />
   ),
   sidebar: (
     <>

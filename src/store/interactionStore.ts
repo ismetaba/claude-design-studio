@@ -10,6 +10,10 @@ interface InteractionStoreState {
   /** ID of the file selected in the Design Files panel ("pages/index", "components/Hero.html", …). */
   activeFileId: string;
   setActiveFileId(id: string): void;
+
+  /** When true, the canvas shows the FilesBrowser overview instead of the active file's preview. */
+  filesOverviewOpen: boolean;
+  setFilesOverviewOpen(open: boolean): void;
 }
 
 export const useInteractionStore = create<InteractionStoreState>((set, get) => ({
@@ -23,6 +27,12 @@ export const useInteractionStore = create<InteractionStoreState>((set, get) => (
 
   activeFileId: 'pages/index',
   setActiveFileId(id) {
-    set({ activeFileId: id });
+    // Opening a file always closes the overview.
+    set({ activeFileId: id, filesOverviewOpen: false });
+  },
+
+  filesOverviewOpen: false,
+  setFilesOverviewOpen(open) {
+    set({ filesOverviewOpen: open });
   },
 }));

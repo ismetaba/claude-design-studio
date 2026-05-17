@@ -5,7 +5,6 @@ import { TopBar } from '../components/layout/TopBar';
 import { TabBar } from '../components/layout/TabBar';
 import { ToastHost } from '../components/ui/ToastHost';
 import { useThemeEffect } from '../components/layout/DarkModeToggle';
-import { FilesPanel } from '../components/files/FilesPanel';
 import { PreviewPane } from '../components/preview/PreviewPane';
 import { PromptDock } from '../components/prompt/PromptDock';
 import { useDesignStore } from '../store/designStore';
@@ -71,11 +70,8 @@ export default function StudioPage() {
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <TabBar />
-          <div className="flex min-h-0 flex-1">
-            <FilesPanel />
-            <div className="min-w-0 flex-1">
-              <PreviewPane />
-            </div>
+          <div className="min-w-0 flex-1">
+            <PreviewPane />
           </div>
         </div>
       </div>

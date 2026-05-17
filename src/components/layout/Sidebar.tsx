@@ -34,7 +34,7 @@ export function Sidebar({ promptDock, status }: SidebarProps) {
   return (
     <aside
       className={cn(
-        'flex h-full shrink-0 flex-col bg-bg transition-[width] duration-180',
+        'flex h-full shrink-0 flex-col bg-bg-elev transition-[width] duration-180',
         collapsed ? 'w-14' : 'w-[320px]',
       )}
       aria-label="Project sidebar"
@@ -67,7 +67,7 @@ export function Sidebar({ promptDock, status }: SidebarProps) {
       {collapsed && <div className="min-h-0 flex-1" />}
 
       {!collapsed && promptDock && (
-        <div className="border-t border-border/70 bg-bg px-3 pt-3 pb-2">{promptDock}</div>
+        <div className="border-t border-border/70 bg-bg-elev px-3 pt-3 pb-2">{promptDock}</div>
       )}
 
       <div className={cn('flex flex-wrap gap-1.5 px-3 py-3', collapsed && 'flex-col items-center')}>

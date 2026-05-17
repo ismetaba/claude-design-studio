@@ -8,7 +8,9 @@ const SAVE_DEBOUNCE_MS = 250;
 function load(projectId: string | null): string {
   if (!projectId) return '';
   try {
-    return storage.getItem(KEY_PREFIX + projectId) ?? '';
+    // StateStorage types getItem as possibly async, but our adapter is always sync.
+    const v = storage.getItem(KEY_PREFIX + projectId);
+    return typeof v === 'string' ? v : '';
   } catch {
     return '';
   }

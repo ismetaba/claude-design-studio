@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useDesignStore } from '../../store/designStore';
 import { useStreamingGenerate } from '../../hooks/useStreamingGenerate';
-import { stripCodeFences } from '../../lib/stripCodeFences';
+import { parseAssistantResponse } from '../../lib/parseAssistantResponse';
 import { Markdown } from '../ui/Markdown';
 import { Icon } from '../ui/Icon';
 import type { Turn } from '../../types/domain';
@@ -49,9 +49,6 @@ export function ConversationView() {
     );
   }
 
-  // If the last turn is a user turn but no assistant has replied yet AND we're
-  // not currently streaming, the previous generation was interrupted (probably
-  // by a page reload). Offer to resume.
   const interrupted = !isStreaming && lastTurn?.role === 'user';
 
   return (
@@ -60,12 +57,7 @@ export function ConversationView() {
         <TurnView key={turn.id} turn={turn} />
       ))}
 
-      {isStreaming && (
-        <div className="flex items-center gap-2 text-[11px] text-muted">
-          <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-accent" aria-hidden="true" />
-          <span>Generating…</span>
-        </div>
-      )}
+      {isStreaming && <StreamingPill />}
 
       {interrupted && (
         <div className="flex items-start gap-2 rounded-xl border border-accent-soft bg-accent-soft/30 p-3 text-[12px]">
@@ -91,9 +83,38 @@ export function ConversationView() {
   );
 }
 
+/**
+ * Phase pills shown while the assistant is streaming. We cycle through a
+ * canonical sequence (Searching → Writing → Editing) so the panel feels like
+ * Claude Design's collapsible status bands even without real tool-use signals.
+ */
+function StreamingPill() {
+  const phases = ['Searching', 'Writing', 'Editing'] as const;
+  return (
+    <div className="flex flex-col gap-1.5">
+      {phases.map((label, i) => (
+        <div
+          key={label}
+          className="flex items-center gap-2 rounded-lg border border-border bg-panel px-2.5 py-1.5 text-[11px] text-fg/80"
+        >
+          <span
+            className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-accent"
+            style={{ animation: `cdsPulse 1.4s ease-in-out ${i * 0.18}s infinite` }}
+            aria-hidden="true"
+          />
+          <Icon name="sparkle" size={11} className="shrink-0 text-accent" />
+          <span className="font-medium">{label}</span>
+          <Icon name="chevron-down" size={10} className="ml-auto shrink-0 text-muted/70" />
+        </div>
+      ))}
+      <style>{`@keyframes cdsPulse { 0%,100% { opacity: 0.35 } 50% { opacity: 1 } }`}</style>
+    </div>
+  );
+}
+
 function TurnView({ turn }: { turn: Turn }) {
-  const prose = useMemo(
-    () => (turn.role === 'assistant' ? stripCodeFences(turn.content) : ''),
+  const parsed = useMemo(
+    () => (turn.role === 'assistant' ? parseAssistantResponse(turn.content) : null),
     [turn.role, turn.content],
   );
 
@@ -105,12 +126,45 @@ function TurnView({ turn }: { turn: Turn }) {
     );
   }
 
-  if (!prose) {
+  if (!parsed) return null;
+
+  // Questions mode: just announce — the form lives in the canvas now.
+  if (parsed.kind === 'questions') {
+    return (
+      <div className="flex flex-col gap-2">
+        {parsed.prose && <Markdown source={parsed.prose} />}
+        <div className="flex items-center gap-1.5 rounded-xl border border-accent-soft bg-accent-soft/30 px-3 py-2 text-[11px] text-fg/85">
+          <Icon name="sparkle" size={11} className="text-accent" />
+          <span>
+            {parsed.groups.length} quick question{parsed.groups.length === 1 ? '' : 's'} on the right — answer to continue.
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // Variations mode: show the prose intro; the actual grid renders in the preview pane.
+  if (parsed.kind === 'variations') {
+    return (
+      <div className="flex flex-col gap-2">
+        {parsed.prose && <Markdown source={parsed.prose} />}
+        <div className="flex items-center gap-1.5 text-[11px] text-muted">
+          <Icon name="sparkle" size={11} className="text-accent" />
+          <span>
+            Showing {parsed.items.length} variations in the preview — click one to make it the main design.
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // Single mode: just the prose. Empty prose => HTML-only response.
+  if (!parsed.prose) {
     return (
       <p className="text-[11px] italic text-muted">
         Claude returned only HTML — see the preview on the right.
       </p>
     );
   }
-  return <Markdown source={prose} />;
+  return <Markdown source={parsed.prose} />;
 }

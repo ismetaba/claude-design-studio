@@ -2,7 +2,7 @@ import { useCallback, useRef } from 'react';
 import { postGenerate, type PostGenerateArgs } from '../lib/api';
 import { useDesignStore } from '../store/designStore';
 import { useSettingsStore } from '../store/settingsStore';
-import { extractHtml } from '../lib/extractHtml';
+import { parseAssistantResponse } from '../lib/parseAssistantResponse';
 import type { SSEEvent } from '../types/domain';
 
 export interface UseStreamingGenerateOptions {
@@ -46,7 +46,17 @@ export function useStreamingGenerate(opts: UseStreamingGenerateOptions = {}): St
         case 'delta':
           collected += event.text;
           designState.appendAssistantDelta(event.text);
-          designState.setCurrentHtml(extractHtml(collected));
+          {
+            // Mode-aware preview update:
+            //  - single   → mirror the streaming HTML into currentHtml so the
+            //               iframe can show progressive render
+            //  - questions → leave currentHtml untouched (sidebar renders form)
+            //  - variations → leave currentHtml untouched (canvas renders grid)
+            const parsed = parseAssistantResponse(collected);
+            if (parsed.kind === 'single' && parsed.html) {
+              designState.setCurrentHtml(parsed.html);
+            }
+          }
           break;
         case 'session':
           receivedSessionId = event.sdkSessionId;

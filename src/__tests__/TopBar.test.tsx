@@ -28,21 +28,17 @@ describe('TopBar', () => {
     useInteractionStore.setState({ mode: 'normal' });
   });
 
-  it('exposes theme toggle, Present, Share, Comment, Draw, and a new-design action', () => {
+  it('exposes theme toggle, Present, Share, and a new-design action', () => {
     renderTopBar();
     expect(screen.getByLabelText(/switch to dark mode/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /present/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /share/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^comment$/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^draw$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /new design/i })).toBeInTheDocument();
   });
 
-  it('disables Present/Share/Comment/Draw when there is no design content', () => {
+  it('disables Present/Share when there is no design content', () => {
     renderTopBar();
     expect(screen.getByRole('button', { name: /present/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /share/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /^comment$/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /^draw$/i })).toBeDisabled();
   });
 });

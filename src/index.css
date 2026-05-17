@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 :root {
-  --bg: #faf6ec;
-  --bg-elev: #fdfaf2;
+  --bg: #f5efe1;
+  --bg-elev: #faf8f1;
   --fg: #2a2520;
   --fg-strong: #1f1a14;
   --accent: #c46b4d;
@@ -12,7 +12,7 @@
   --accent-soft: #e8b5a0;
   --accent-soft-hover: #dfa68f;
   --muted: #7d7368;
-  --border: #e9e1d0;
+  --border: #e4dccb;
   --panel: #ffffff;
   --hover: rgba(31, 26, 20, 0.05);
 }

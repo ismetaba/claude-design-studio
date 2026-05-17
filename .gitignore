@@ -24,3 +24,6 @@ coverage
 .env
 .env.local
 .env.*.local
+
+# claude code local dev config
+.claude/

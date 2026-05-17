@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { PreviewPane } from '../components/preview/PreviewPane';
 import { useDesignStore } from '../store/designStore';
 import { useInteractionStore } from '../store/interactionStore';
@@ -56,14 +55,4 @@ describe('PreviewPane', () => {
     expect(iframe.getAttribute('srcdoc')).toContain('<div>hi</div>');
   });
 
-  it('DeviceToggle switches the wrapper max-width', async () => {
-    const user = userEvent.setup();
-    withActiveSession('<p>x</p>');
-    const { container } = render(<PreviewPane debounceMs={0} />);
-    await new Promise((r) => setTimeout(r, 5));
-    await user.click(screen.getByLabelText(/preview at mobile size/i));
-    const wrapper = container.querySelector('[style*="max-width"]') as HTMLElement | null;
-    expect(wrapper).not.toBeNull();
-    expect(wrapper?.getAttribute('style')).toContain('375px');
-  });
 });
