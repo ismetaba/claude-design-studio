@@ -13,7 +13,7 @@ export function extractHtml(raw: string): string {
   }
 
   // 2. Remove the opening fence and optional language marker on the first line.
-  text = text.replace(/^```[ \t]*([A-Za-z0-9_+\-]+)?[ \t]*\r?\n?/, '');
+  text = text.replace(/^```[ \t]*([A-Za-z0-9_+-]+)?[ \t]*\r?\n?/, '');
 
   // 3. Strip a trailing closing fence if present (tolerate partial fences).
   text = text.replace(/\r?\n?```\s*$/, '');

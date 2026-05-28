@@ -1,5 +1,6 @@
 import express, { type Express } from 'express';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { generateHandler } from './routes/generate';
 import { testBackendHandler } from './routes/testBackend';
 import { statusHandler } from './routes/status';
@@ -36,11 +37,13 @@ export function createApp(opts: CreateAppOptions = {}): Express {
   return app;
 }
 
+// True only when this module is the process entry point (`node server/index.ts`),
+// not when it is imported by tests. Comparing resolved paths is robust to the
+// working directory and to the .ts/.js extension.
 const isMain = (() => {
   try {
     const entry = process.argv[1];
-    if (!entry) return false;
-    return entry.endsWith('server/index.ts') || entry.endsWith('server/index.js');
+    return !!entry && path.resolve(entry) === fileURLToPath(import.meta.url);
   } catch {
     return false;
   }

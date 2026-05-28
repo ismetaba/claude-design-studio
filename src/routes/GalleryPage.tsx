@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDesignStore } from '../store/designStore';
 import { useSettingsStore } from '../store/settingsStore';
-import { useThemeEffect } from '../components/layout/DarkModeToggle';
+import { useThemeEffect } from '../hooks/useThemeEffect';
 import { CreateProjectForm } from '../components/gallery/CreateProjectForm';
 import { ProjectCard } from '../components/gallery/ProjectCard';
 import { Icon } from '../components/ui/Icon';

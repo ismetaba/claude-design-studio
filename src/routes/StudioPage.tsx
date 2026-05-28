@@ -4,7 +4,7 @@ import { Sidebar } from '../components/layout/Sidebar';
 import { TopBar } from '../components/layout/TopBar';
 import { TabBar } from '../components/layout/TabBar';
 import { ToastHost } from '../components/ui/ToastHost';
-import { useThemeEffect } from '../components/layout/DarkModeToggle';
+import { useThemeEffect } from '../hooks/useThemeEffect';
 import { PreviewPane } from '../components/preview/PreviewPane';
 import { PromptDock } from '../components/prompt/PromptDock';
 import { useDesignStore } from '../store/designStore';

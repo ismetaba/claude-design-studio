@@ -19,7 +19,7 @@ export function stripCodeFences(raw: string): string {
     let cursor = open + 3;
     // optional language tag on the same line
     const nl = raw.indexOf('\n', cursor);
-    if (nl !== -1 && /^[A-Za-z0-9_+\-]*$/.test(raw.slice(cursor, nl).trim())) {
+    if (nl !== -1 && /^[A-Za-z0-9_+-]*$/.test(raw.slice(cursor, nl).trim())) {
       cursor = nl + 1;
     }
     const close = raw.indexOf('```', cursor);

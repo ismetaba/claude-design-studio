@@ -4,6 +4,7 @@ import type {
   SSEEvent,
   TurnRole,
 } from '../types/domain';
+import { splitSseBuffer, type SseRecord } from './sseParse';
 
 export interface PostGenerateArgs {
   backend: BackendConfig;
@@ -19,31 +20,7 @@ export interface PostGenerateArgs {
   fetcher?: typeof fetch;
 }
 
-interface ParsedSseEvent {
-  event: string;
-  data: string;
-}
-
-function parseSseChunks(text: string): { events: ParsedSseEvent[]; rest: string } {
-  const events: ParsedSseEvent[] = [];
-  let rest = text;
-  while (true) {
-    const idx = rest.indexOf('\n\n');
-    if (idx < 0) break;
-    const block = rest.slice(0, idx);
-    rest = rest.slice(idx + 2);
-    let event = 'message';
-    const dataLines: string[] = [];
-    for (const line of block.split('\n')) {
-      if (line.startsWith('event:')) event = line.slice(6).trim();
-      else if (line.startsWith('data:')) dataLines.push(line.slice(5).trimStart());
-    }
-    events.push({ event, data: dataLines.join('\n') });
-  }
-  return { events, rest };
-}
-
-function toTypedEvent(raw: ParsedSseEvent): SSEEvent | null {
+function toTypedEvent(raw: SseRecord): SSEEvent | null {
   try {
     const data = raw.data ? JSON.parse(raw.data) : {};
     switch (raw.event) {
@@ -90,16 +67,16 @@ export async function postGenerate(args: PostGenerateArgs): Promise<void> {
     const { value, done } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
-    const { events, rest } = parseSseChunks(buffer);
+    const { records, rest } = splitSseBuffer(buffer);
     buffer = rest;
-    for (const raw of events) {
+    for (const raw of records) {
       const typed = toTypedEvent(raw);
       if (typed) args.onEvent(typed);
     }
   }
   if (buffer.length > 0) {
-    const { events } = parseSseChunks(buffer + '\n\n');
-    for (const raw of events) {
+    const { records } = splitSseBuffer(buffer + '\n\n');
+    for (const raw of records) {
       const typed = toTypedEvent(raw);
       if (typed) args.onEvent(typed);
     }
@@ -123,4 +100,4 @@ export async function postTestBackend(
   return (await res.json()) as { ok: boolean; latencyMs: number; error?: string };
 }
 
-export const _internals = { parseSseChunks, toTypedEvent };
+export const _internals = { splitSseBuffer, toTypedEvent };

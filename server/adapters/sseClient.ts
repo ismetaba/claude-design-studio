@@ -1,12 +1,14 @@
 /**
  * Parse SSE byte stream from a fetch Response into a typed event stream.
  * Handles partial events across packet boundaries.
+ *
+ * The block/record parsing itself lives in the shared `sseParse` module so the
+ * client and server agree on the wire format.
  */
 
-export interface SseRecord {
-  event: string;
-  data: string;
-}
+import { parseSseBlock, splitSseBuffer, type SseRecord } from '../../src/lib/sseParse';
+
+export type { SseRecord };
 
 export async function* iterateSseRecords(
   body: ReadableStream<Uint8Array>,
@@ -21,30 +23,12 @@ export async function* iterateSseRecords(
       const { value, done } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
-      while (true) {
-        const idx = buffer.indexOf('\n\n');
-        if (idx < 0) break;
-        const block = buffer.slice(0, idx);
-        buffer = buffer.slice(idx + 2);
-        let event = 'message';
-        const dataLines: string[] = [];
-        for (const line of block.split('\n')) {
-          if (line.startsWith('event:')) event = line.slice(6).trim();
-          else if (line.startsWith('data:')) dataLines.push(line.slice(5).trimStart());
-        }
-        yield { event, data: dataLines.join('\n') };
-      }
+      const { records, rest } = splitSseBuffer(buffer);
+      buffer = rest;
+      for (const record of records) yield record;
     }
-    if (buffer.trim().length > 0) {
-      const block = buffer;
-      let event = 'message';
-      const dataLines: string[] = [];
-      for (const line of block.split('\n')) {
-        if (line.startsWith('event:')) event = line.slice(6).trim();
-        else if (line.startsWith('data:')) dataLines.push(line.slice(5).trimStart());
-      }
-      yield { event, data: dataLines.join('\n') };
-    }
+    // Flush any trailing record that wasn't terminated by a blank line.
+    if (buffer.trim().length > 0) yield parseSseBlock(buffer);
   } finally {
     try {
       reader.releaseLock();

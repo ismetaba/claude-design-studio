@@ -1,19 +1,12 @@
 import type { AdapterMessage, ConnectionTestResult, LLMBackend, StreamOptions } from './types';
 import { buildSystemPrompt } from '../lib/systemPrompt';
 import { prepareMessages } from '../lib/prepareMessages';
-import { iterateSseRecords } from './sseClient';
+import { streamOpenAiDeltas } from './openaiStream';
+import { trimSlash } from '../lib/url';
 import type { LocalLlmConfig } from '../../src/types/domain';
 
 export interface LocalLlmBackendOptions {
   fetcher?: typeof fetch;
-}
-
-interface OpenAiChunk {
-  choices?: Array<{ delta?: { content?: string } }>;
-}
-
-function trimSlash(url: string): string {
-  return url.replace(/\/+$/, '');
 }
 
 export class LocalLlmBackend implements LLMBackend {
@@ -56,17 +49,7 @@ export class LocalLlmBackend implements LLMBackend {
     if (!res.ok || !res.body) {
       throw new Error(`Local LLM failed: HTTP ${res.status}`);
     }
-    for await (const rec of iterateSseRecords(res.body, opts.signal)) {
-      if (rec.data === '[DONE]') return;
-      if (!rec.data) continue;
-      try {
-        const chunk = JSON.parse(rec.data) as OpenAiChunk;
-        const piece = chunk.choices?.[0]?.delta?.content;
-        if (piece) yield piece;
-      } catch {
-        /* ignore */
-      }
-    }
+    yield* streamOpenAiDeltas(res.body, opts.signal);
   }
 
   async testConnection(signal?: AbortSignal): Promise<ConnectionTestResult> {

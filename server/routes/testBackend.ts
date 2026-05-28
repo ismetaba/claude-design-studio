@@ -1,8 +1,11 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { resolveBackend } from '../adapters/factory';
 import { readJsonBody } from '../lib/readJsonBody';
+import { validateBackendConfig } from '../../src/lib/validate';
 import type { BackendConfig } from '../../src/types/domain';
 import { BackendUnavailableError } from '../adapters/types';
+
+const VALID_KINDS: Array<BackendConfig['kind']> = ['claude-agent-sdk', 'custom-api', 'local-llm'];
 
 export interface TestBackendHandlerOptions {
   resolve?: typeof resolveBackend;
@@ -19,9 +22,16 @@ export function testBackendHandler(opts: TestBackendHandlerOptions = {}) {
     res.setHeader('Content-Type', 'application/json');
     try {
       const parsed = (await readJsonBody(req)) as { backend?: BackendConfig };
-      if (!parsed?.backend) {
+      if (!parsed?.backend || !VALID_KINDS.includes(parsed.backend.kind)) {
         res.statusCode = 400;
         res.end(JSON.stringify({ ok: false, error: 'Missing backend config' }));
+        return;
+      }
+      const validation = validateBackendConfig(parsed.backend);
+      if (!validation.ok) {
+        const detail = Object.values(validation.errors).filter(Boolean).join(' ');
+        res.statusCode = 400;
+        res.end(JSON.stringify({ ok: false, error: detail || 'Invalid backend config' }));
         return;
       }
       const backend = resolve(parsed.backend);
