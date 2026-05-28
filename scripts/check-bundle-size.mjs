@@ -19,7 +19,7 @@ async function main() {
   let entries;
   try {
     entries = await readdir(DIST);
-  } catch (err) {
+  } catch {
     console.error(`✗ Could not read ${DIST}. Did you run 'npm run build' first?`);
     process.exit(1);
   }

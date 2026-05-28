@@ -48,8 +48,10 @@ All state lives in `localStorage` — no server-side database, no telemetry. API
 ```bash
 npm install          # install dependencies
 npm run dev          # Vite dev server + /api middleware at http://localhost:5173
-npm test -- --run    # 179 unit tests (Vitest + jsdom)
-npm run lint         # tsc --noEmit
+npm test -- --run    # unit tests (Vitest + jsdom)
+npm run typecheck    # tsc --noEmit
+npm run lint         # eslint .
+npm run check        # typecheck + lint + tests in one shot
 npm run build        # tsc -b && vite build, output to dist/
 npm start            # serve dist/ behind an Express server (production-style)
 ```

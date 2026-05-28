@@ -45,7 +45,7 @@ describe('useStreamingGenerate', () => {
       args.onEvent({ type: 'delta', text: '```html\n<p>1</p>\n```' });
       args.onEvent({ type: 'done' });
     });
-    let hook = renderHook(({ poster }: { poster: typeof poster1 }) => useStreamingGenerate({ poster }), {
+    const hook = renderHook(({ poster }: { poster: typeof poster1 }) => useStreamingGenerate({ poster }), {
       initialProps: { poster: poster1 },
     });
     await act(async () => {

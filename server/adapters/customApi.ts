@@ -2,15 +2,13 @@ import type { AdapterMessage, ConnectionTestResult, LLMBackend, StreamOptions } 
 import { buildSystemPrompt } from '../lib/systemPrompt';
 import { prepareMessages } from '../lib/prepareMessages';
 import { iterateSseRecords } from './sseClient';
+import { streamOpenAiDeltas } from './openaiStream';
+import { trimSlash } from '../lib/url';
 import type { CustomApiConfig } from '../../src/types/domain';
 
 export interface CustomApiBackendOptions {
   /** Inject for tests. */
   fetcher?: typeof fetch;
-}
-
-interface OpenAiChunk {
-  choices?: Array<{ delta?: { content?: string } }>;
 }
 
 interface AnthropicChunkDelta {
@@ -26,10 +24,6 @@ interface AnthropicTextBlock {
 interface AnthropicMessageInput {
   role: 'user' | 'assistant';
   content: AnthropicTextBlock[];
-}
-
-function trimSlash(url: string): string {
-  return url.replace(/\/+$/, '');
 }
 
 export class CustomApiBackend implements LLMBackend {
@@ -81,17 +75,7 @@ export class CustomApiBackend implements LLMBackend {
     if (!res.ok || !res.body) {
       throw new Error(`Custom API (openai) failed: HTTP ${res.status}`);
     }
-    for await (const rec of iterateSseRecords(res.body, signal)) {
-      if (rec.data === '[DONE]') return;
-      if (!rec.data) continue;
-      try {
-        const chunk = JSON.parse(rec.data) as OpenAiChunk;
-        const piece = chunk.choices?.[0]?.delta?.content;
-        if (piece) yield piece;
-      } catch {
-        // Ignore malformed chunks; some providers emit keep-alives.
-      }
-    }
+    yield* streamOpenAiDeltas(res.body, signal);
   }
 
   private async *streamAnthropic(

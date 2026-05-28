@@ -1,11 +1,6 @@
 import { persist, type PersistOptions, type StateStorage } from 'zustand/middleware';
 
 /**
- * Throttled, quota-tolerant localStorage adapter for Zustand.
- * - Coalesces writes to ≤ 1/s per key.
- * - Catches quota and access errors so persistence never throws into the app.
- */
-/**
  * Pick a usable Storage implementation:
  * - Prefer `window.localStorage` (jsdom or browser).
  * - Fall back to an in-memory shim when no real Storage is available
@@ -52,6 +47,11 @@ function pickStorage(): Storage {
 
 const backing = pickStorage();
 
+/**
+ * Throttled, quota-tolerant localStorage adapter for Zustand.
+ * - Coalesces writes to ≤ 1/s per key.
+ * - Catches quota and access errors so persistence never throws into the app.
+ */
 function safeStorage(): StateStorage {
   const lastWriteAt = new Map<string, number>();
   const pendingValue = new Map<string, string>();

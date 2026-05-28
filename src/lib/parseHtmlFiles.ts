@@ -86,6 +86,7 @@ export function parseHtmlFiles(html: string): VirtualFile[] {
   // 2) Styles
   const styles: string[] = [];
   let sMatch: RegExpExecArray | null;
+  STYLE_RE.lastIndex = 0;
   while ((sMatch = STYLE_RE.exec(html)) !== null) {
     const body = sMatch[1].trim();
     if (body) styles.push(body);
@@ -105,6 +106,7 @@ export function parseHtmlFiles(html: string): VirtualFile[] {
   // 3) Scripts (skip CDN <script src="https://cdn.tailwindcss.com">, etc.)
   const scripts: string[] = [];
   let scriptMatch: RegExpExecArray | null;
+  SCRIPT_RE.lastIndex = 0;
   while ((scriptMatch = SCRIPT_RE.exec(html)) !== null) {
     const attrs = scriptMatch[1] ?? '';
     const body = (scriptMatch[2] ?? '').trim();

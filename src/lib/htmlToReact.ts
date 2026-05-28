@@ -44,10 +44,38 @@ const ATTR_RENAMES: Record<string, string> = {
 
 const TAG_RE = /<(\/?)([a-zA-Z][a-zA-Z0-9-]*)([^>]*?)(\/?)>/g;
 const ATTR_RE = /\s+([a-zA-Z_:][-a-zA-Z0-9_:.]*)(\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'>=`]+))?/g;
+const QUOTED_VALUE_RE = /=\s*(?:"([^"]*)"|'([^']*)')/;
+
+/**
+ * Convert an inline CSS string (`"color: red; font-size: 12px"`) into a JSX
+ * style-object expression (`{{ color: 'red', fontSize: '12px' }}`). React
+ * rejects a raw style string, so this is required for the output to compile.
+ */
+function cssToReactStyle(css: string): string {
+  const entries: string[] = [];
+  for (const decl of css.split(';')) {
+    const idx = decl.indexOf(':');
+    if (idx < 0) continue;
+    const prop = decl.slice(0, idx).trim();
+    const value = decl.slice(idx + 1).trim();
+    if (!prop || !value) continue;
+    // CSS custom properties (`--foo`) stay verbatim as a quoted key; everything
+    // else is camelCased (`font-size` → `fontSize`, `-webkit-x` → `WebkitX`).
+    const key = prop.startsWith('--')
+      ? `'${prop}'`
+      : prop.replace(/-([a-z])/g, (_m, c: string) => c.toUpperCase());
+    entries.push(`${key}: '${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`);
+  }
+  return `{{ ${entries.join(', ')} }}`;
+}
 
 function rewriteAttributes(attrSource: string): string {
   return attrSource.replace(ATTR_RE, (_match, name: string, valueExpr?: string) => {
     const lower = name.toLowerCase();
+    if (lower === 'style' && valueExpr) {
+      const m = QUOTED_VALUE_RE.exec(valueExpr);
+      if (m) return ` style=${cssToReactStyle(m[1] ?? m[2] ?? '')}`;
+    }
     const newName = ATTR_RENAMES[lower] ?? name;
     return ` ${newName}${valueExpr ?? ''}`;
   });

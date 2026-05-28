@@ -58,7 +58,7 @@ export function PreviewPane({ debounceMs = 150 }: PreviewPaneProps) {
   // variations). For "questions" we additionally require that turn to be the
   // VERY LAST turn — once the user has answered (appending a user turn) the
   // questions card should vanish so the streaming response can take over.
-  const turns = session?.turns ?? [];
+  const turns = useMemo(() => session?.turns ?? [], [session]);
   const lastAssistant = useMemo(
     () => [...turns].reverse().find((t) => t.role === 'assistant'),
     [turns],
@@ -105,7 +105,6 @@ export function PreviewPane({ debounceMs = 150 }: PreviewPaneProps) {
     [file],
   );
 
-  const hasPage = debounced.trim().length > 0 && file?.kind === 'page';
   const annotating = mode !== 'normal';
   const isEmpty = !file || file.content.length === 0;
 

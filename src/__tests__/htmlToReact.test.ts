@@ -36,6 +36,18 @@ describe('htmlToJsx', () => {
       '<section className="hero"><h1>Hello</h1><p className="lead">world</p></section>',
     );
   });
+
+  it('converts inline style strings into React style objects', () => {
+    expect(htmlToJsx('<div style="color: red; font-size: 12px">x</div>')).toBe(
+      "<div style={{ color: 'red', fontSize: '12px' }}>x</div>",
+    );
+  });
+
+  it('camelCases vendor prefixes and keeps CSS custom properties quoted', () => {
+    expect(htmlToJsx('<div style="-webkit-box-shadow: 0 0 2px; --brand: #fff">x</div>')).toBe(
+      "<div style={{ WebkitBoxShadow: '0 0 2px', '--brand': '#fff' }}>x</div>",
+    );
+  });
 });
 
 describe('htmlToReact', () => {

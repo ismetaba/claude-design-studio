@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useSettingsStore } from '../store/settingsStore';
 import { useDesignStore } from '../store/designStore';
-import { useThemeEffect } from '../components/layout/DarkModeToggle';
+import { useThemeEffect } from '../hooks/useThemeEffect';
 import { Button } from '../components/ui/Button';
 import { BackendPicker } from '../components/settings/BackendPicker';
 import { ClaudeSdkPanel } from '../components/settings/ClaudeSdkPanel';

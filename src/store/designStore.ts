@@ -62,6 +62,36 @@ function makeTurn(role: Turn['role'], content: string): Turn {
   };
 }
 
+type DesignSet = (
+  partial:
+    | DesignStoreState
+    | Partial<DesignStoreState>
+    | ((state: DesignStoreState) => DesignStoreState | Partial<DesignStoreState>),
+) => void;
+
+/**
+ * Replace a single session by id through a pure patch function. No-op (and no
+ * re-render) when the id is unknown. Collapses the "load → guard → spread-merge
+ * back into the sessions map" boilerplate that every session mutation needs.
+ */
+function patchSession(set: DesignSet, id: string, patch: (session: Session) => Session): void {
+  set((s) => {
+    const session = s.sessions[id];
+    if (!session) return s;
+    return { sessions: { ...s.sessions, [id]: patch(session) } };
+  });
+}
+
+/** As {@link patchSession}, but targets whichever session is currently active. */
+function patchActiveSession(
+  set: DesignSet,
+  get: () => DesignStoreState,
+  patch: (session: Session) => Session,
+): void {
+  const id = get().activeSessionId;
+  if (id) patchSession(set, id, patch);
+}
+
 export const useDesignStore = create<DesignStoreState>()(
   persist(
     (set, get) => ({
@@ -141,42 +171,26 @@ export const useDesignStore = create<DesignStoreState>()(
       appendUserTurn(text) {
         const trimmed = text.trim();
         if (!trimmed) return;
-        let { activeSessionId } = get();
-        if (!activeSessionId) {
-          activeSessionId = get().createSession();
-        }
+        const activeSessionId = get().activeSessionId ?? get().createSession();
         const turn = makeTurn('user', trimmed);
-        const now = Date.now();
-        set((s) => {
-          const session = s.sessions[activeSessionId!];
-          if (!session) return s;
+        patchSession(set, activeSessionId, (session) => {
           const isFirstUserTurn = !session.turns.some((t) => t.role === 'user');
           const nextTitle =
             isFirstUserTurn && session.title === DEFAULT_TITLE
               ? trimmed.slice(0, 40)
               : session.title;
           return {
-            sessions: {
-              ...s.sessions,
-              [activeSessionId!]: {
-                ...session,
-                title: nextTitle,
-                turns: [...session.turns, turn],
-                updatedAt: now,
-              },
-            },
+            ...session,
+            title: nextTitle,
+            turns: [...session.turns, turn],
+            updatedAt: Date.now(),
           };
         });
       },
 
       appendAssistantDelta(delta) {
         if (!delta) return;
-        const { activeSessionId } = get();
-        if (!activeSessionId) return;
-        const now = Date.now();
-        set((s) => {
-          const session = s.sessions[activeSessionId];
-          if (!session) return s;
+        patchActiveSession(set, get, (session) => {
           const turns = [...session.turns];
           const last = turns[turns.length - 1];
           if (last && last.role === 'assistant') {
@@ -184,55 +198,24 @@ export const useDesignStore = create<DesignStoreState>()(
           } else {
             turns.push(makeTurn('assistant', delta));
           }
-          return {
-            sessions: {
-              ...s.sessions,
-              [activeSessionId]: {
-                ...session,
-                turns,
-                updatedAt: now,
-              },
-            },
-          };
+          return { ...session, turns, updatedAt: Date.now() };
         });
       },
 
       finalizeAssistantTurn(opts) {
-        const { activeSessionId } = get();
-        if (!activeSessionId) return;
-        set((s) => {
-          const session = s.sessions[activeSessionId];
-          if (!session) return s;
-          return {
-            sessions: {
-              ...s.sessions,
-              [activeSessionId]: {
-                ...session,
-                sdkSessionId: opts?.sdkSessionId ?? session.sdkSessionId,
-                updatedAt: Date.now(),
-              },
-            },
-          };
-        });
+        patchActiveSession(set, get, (session) => ({
+          ...session,
+          sdkSessionId: opts?.sdkSessionId ?? session.sdkSessionId,
+          updatedAt: Date.now(),
+        }));
       },
 
       setCurrentHtml(html) {
-        const { activeSessionId } = get();
-        if (!activeSessionId) return;
-        set((s) => {
-          const session = s.sessions[activeSessionId];
-          if (!session) return s;
-          return {
-            sessions: {
-              ...s.sessions,
-              [activeSessionId]: {
-                ...session,
-                currentHtml: html,
-                updatedAt: Date.now(),
-              },
-            },
-          };
-        });
+        patchActiveSession(set, get, (session) => ({
+          ...session,
+          currentHtml: html,
+          updatedAt: Date.now(),
+        }));
       },
 
       setStreaming(value) {
@@ -246,36 +229,18 @@ export const useDesignStore = create<DesignStoreState>()(
       renameSession(id, title) {
         const next = title.trim();
         if (!next) return;
-        set((s) => {
-          const session = s.sessions[id];
-          if (!session) return s;
-          return {
-            sessions: {
-              ...s.sessions,
-              [id]: { ...session, title: next, updatedAt: Date.now() },
-            },
-          };
-        });
+        patchSession(set, id, (session) => ({ ...session, title: next, updatedAt: Date.now() }));
       },
 
       setSessionNotes(id, notes) {
-        set((s) => {
-          const session = s.sessions[id];
-          if (!session) return s;
-          return {
-            sessions: {
-              ...s.sessions,
-              [id]: { ...session, notes, updatedAt: Date.now() },
-            },
-          };
-        });
+        patchSession(set, id, (session) => ({ ...session, notes, updatedAt: Date.now() }));
       },
 
       addComment({ x, y, text }) {
         const body = text.trim();
         if (!body) return null;
-        const { activeSessionId } = get();
-        if (!activeSessionId) return null;
+        const id = get().activeSessionId;
+        if (!id) return null;
         const comment: CommentAnnotation = {
           id: newId(),
           x: Math.max(0, Math.min(1, x)),
@@ -284,76 +249,50 @@ export const useDesignStore = create<DesignStoreState>()(
           status: 'open',
           createdAt: Date.now(),
         };
-        set((s) => {
-          const session = s.sessions[activeSessionId];
-          if (!session) return s;
-          const comments = [...(session.comments ?? []), comment];
-          return {
-            sessions: {
-              ...s.sessions,
-              [activeSessionId]: { ...session, comments, updatedAt: Date.now() },
-            },
-          };
-        });
+        patchSession(set, id, (session) => ({
+          ...session,
+          comments: [...(session.comments ?? []), comment],
+          updatedAt: Date.now(),
+        }));
         return comment.id;
       },
 
       markCommentSent(id) {
-        const { activeSessionId } = get();
-        if (!activeSessionId) return;
-        set((s) => {
-          const session = s.sessions[activeSessionId];
-          if (!session?.comments) return s;
-          const comments = session.comments.map((c) =>
-            c.id === id ? { ...c, status: 'sent' as const } : c,
-          );
-          return {
-            sessions: {
-              ...s.sessions,
-              [activeSessionId]: { ...session, comments },
-            },
-          };
-        });
+        patchActiveSession(set, get, (session) =>
+          session.comments
+            ? {
+                ...session,
+                comments: session.comments.map((c) =>
+                  c.id === id ? { ...c, status: 'sent' as const } : c,
+                ),
+              }
+            : session,
+        );
       },
 
       deleteComment(id) {
-        const { activeSessionId } = get();
-        if (!activeSessionId) return;
-        set((s) => {
-          const session = s.sessions[activeSessionId];
-          if (!session?.comments) return s;
-          const comments = session.comments.filter((c) => c.id !== id);
-          return {
-            sessions: {
-              ...s.sessions,
-              [activeSessionId]: { ...session, comments },
-            },
-          };
-        });
+        patchActiveSession(set, get, (session) =>
+          session.comments
+            ? { ...session, comments: session.comments.filter((c) => c.id !== id) }
+            : session,
+        );
       },
 
       clearComments(status) {
-        const { activeSessionId } = get();
-        if (!activeSessionId) return;
-        set((s) => {
-          const session = s.sessions[activeSessionId];
-          if (!session?.comments) return s;
-          const comments = status
-            ? session.comments.filter((c) => c.status !== status)
-            : [];
-          return {
-            sessions: {
-              ...s.sessions,
-              [activeSessionId]: { ...session, comments },
-            },
-          };
-        });
+        patchActiveSession(set, get, (session) =>
+          session.comments
+            ? {
+                ...session,
+                comments: status ? session.comments.filter((c) => c.status !== status) : [],
+              }
+            : session,
+        );
       },
 
       addDrawing({ note, strokes }) {
         if (strokes.length === 0) return null;
-        const { activeSessionId } = get();
-        if (!activeSessionId) return null;
+        const id = get().activeSessionId;
+        if (!id) return null;
         const drawing: DrawAnnotation = {
           id: newId(),
           note: note.trim(),
@@ -361,70 +300,44 @@ export const useDesignStore = create<DesignStoreState>()(
           status: 'open',
           createdAt: Date.now(),
         };
-        set((s) => {
-          const session = s.sessions[activeSessionId];
-          if (!session) return s;
-          const drawings = [...(session.drawings ?? []), drawing];
-          return {
-            sessions: {
-              ...s.sessions,
-              [activeSessionId]: { ...session, drawings, updatedAt: Date.now() },
-            },
-          };
-        });
+        patchSession(set, id, (session) => ({
+          ...session,
+          drawings: [...(session.drawings ?? []), drawing],
+          updatedAt: Date.now(),
+        }));
         return drawing.id;
       },
 
       markDrawingSent(id) {
-        const { activeSessionId } = get();
-        if (!activeSessionId) return;
-        set((s) => {
-          const session = s.sessions[activeSessionId];
-          if (!session?.drawings) return s;
-          const drawings = session.drawings.map((d) =>
-            d.id === id ? { ...d, status: 'sent' as const } : d,
-          );
-          return {
-            sessions: {
-              ...s.sessions,
-              [activeSessionId]: { ...session, drawings },
-            },
-          };
-        });
+        patchActiveSession(set, get, (session) =>
+          session.drawings
+            ? {
+                ...session,
+                drawings: session.drawings.map((d) =>
+                  d.id === id ? { ...d, status: 'sent' as const } : d,
+                ),
+              }
+            : session,
+        );
       },
 
       deleteDrawing(id) {
-        const { activeSessionId } = get();
-        if (!activeSessionId) return;
-        set((s) => {
-          const session = s.sessions[activeSessionId];
-          if (!session?.drawings) return s;
-          const drawings = session.drawings.filter((d) => d.id !== id);
-          return {
-            sessions: {
-              ...s.sessions,
-              [activeSessionId]: { ...session, drawings },
-            },
-          };
-        });
+        patchActiveSession(set, get, (session) =>
+          session.drawings
+            ? { ...session, drawings: session.drawings.filter((d) => d.id !== id) }
+            : session,
+        );
       },
 
       clearDrawings(status) {
-        const { activeSessionId } = get();
-        if (!activeSessionId) return;
-        set((s) => {
-          const session = s.sessions[activeSessionId];
-          if (!session?.drawings) return s;
-          const drawings = status
-            ? session.drawings.filter((d) => d.status !== status)
-            : [];
-          return {
-            sessions: {
-              ...s.sessions,
-              [activeSessionId]: { ...session, drawings },
-            },
-          };
-        });
+        patchActiveSession(set, get, (session) =>
+          session.drawings
+            ? {
+                ...session,
+                drawings: status ? session.drawings.filter((d) => d.status !== status) : [],
+              }
+            : session,
+        );
       },
     }),
     makePersistOptions<DesignStoreState>({
